@@ -1,0 +1,67 @@
+version: 2.1
+
+orbs:
+  slack: circleci/slack@5.0  # Import Slack orb
+
+jobs:
+  build:
+    docker:
+      - image: cimg/base:current
+      
+    steps:
+      - checkout
+      - setup_remote_docker
+      
+      
+      - run:
+          name: Install SSH and Rsync
+          command: sudo apt-get update && sudo apt-get install -y ssh sshpass
+      
+      # Notify Slack on Build Start
+      - slack/notify:
+          event: always
+          thread_id: $CIRCLE_BUILD_NUM $CIRCLE_PROJECT_REPONAME
+          channel: $SLACK_DEFAULT_CHANNEL
+          custom: |
+            {
+              "text": "🚀 Deployment Start for $CIRCLE_BRANCH\nStack Name : `$CIRCLE_PROJECT_REPONAME`"
+              
+            }
+            
+      - run:
+          name: Copy Docker Images To Server
+          command: sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST  -p  $SSH_PORT "cd /data/circle-ci/py.razorcopy.com && git checkout staging && git pull"
+      
+      - run:
+          name: Load Docker Images
+          command: sshpass -p "$SSH_PASSWORD" ssh -o StrictHostKeyChecking=no $SSH_USER@$SSH_HOST -p $SSH_PORT "cd /data/circle-ci/py.razorcopy.com && docker-compose up -d --build"  
+      
+      # Notify Slack on Success
+      - slack/notify:
+          event: pass
+          thread_id: $CIRCLE_BUILD_NUM $CIRCLE_PROJECT_REPONAME
+          channel: $SLACK_DEFAULT_CHANNEL
+          custom: |
+            {
+              "text": "✅ Deployment Completed for $CIRCLE_BRANCH\nStack Name : `$CIRCLE_PROJECT_REPONAME`"
+            }
+          
+            
+workflows:
+  version: 2
+  build:
+    jobs:
+      - build:
+          filters:
+            branches:
+              only:
+                - staging
+          post-steps:
+            - slack/notify:
+                event: fail
+                thread_id: $CIRCLE_BUILD_NUM $CIRCLE_PROJECT_REPONAME
+                channel: $SLACK_DEFAULT_CHANNEL
+                custom: |
+                  {
+                    "text": "❌ Deployment Failed for $CIRCLE_BRANCH\nStack Name : `$CIRCLE_PROJECT_REPONAME`"
+                  }

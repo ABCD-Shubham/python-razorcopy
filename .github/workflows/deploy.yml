@@ -1,0 +1,19 @@
+name: Deploy to Jenkins
+
+on:
+  push:
+    branches:
+      - development
+      - main
+
+jobs:
+  trigger-jenkins:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send cURL request to Jenkins
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/development" ]]; then
+            curl -X POST "https://jenkins.sitepreviews.dev/generic-webhook-trigger/invoke?token=rapp-python"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            curl -X POST "https://jenkins.sitepreviews.dev/generic-webhook-trigger/invoke?token=rapp-python-prod"
+          fi
